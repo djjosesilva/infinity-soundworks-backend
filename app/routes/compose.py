@@ -15,9 +15,13 @@ router = APIRouter()
 class ComposeRequest(BaseModel):
     tema: str
     estilo: str = "Fado + Deep House"
+    exclude_style: str = ""
     bpm: int = 120
     key: str = "Cm"
     idioma: str = "PT-PT"
+    vocal_gender: str = "male"
+    weirdness: float = 0.5
+    style_influence: str = ""
     referencias: list = []
     instrucoes_extra: dict = {}
 
@@ -32,7 +36,12 @@ class AlcateiaRequest(BaseModel):
 async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Executa o pipeline ZACOR AI (8 agentes)."""
     if is_demo_mode(user.deepseek_key):
-        prompt = f"Compose a song in {req.idioma} about: {req.tema}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Write complete lyrics with [Intro][Verse][Chorus][Bridge][Outro] tags."
+        extra_demo = []
+        if req.exclude_style: extra_demo.append(f"Exclude styles: {req.exclude_style}")
+        if req.vocal_gender: extra_demo.append(f"Vocal: {req.vocal_gender}")
+        if req.weirdness is not None: extra_demo.append(f"Weirdness: {req.weirdness}")
+        if req.style_influence: extra_demo.append(f"Influences: {req.style_influence}")
+        prompt = f"Compose a song in {req.idioma} about: {req.tema}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. {' '.join(extra_demo)} Write complete lyrics with [Intro][Verse][Chorus][Bridge][Outro] tags."
         response = call_hf(DEMO_MODELS["compose"], prompt, 2000, 0.8)
 
         production = Production(
@@ -51,7 +60,13 @@ async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_us
         client = OpenAI(api_key=user.deepseek_key, base_url="https://api.deepseek.com/v1")
 
         # Maestro
-        sp_maestro = f"You are the MAESTRO. Plan a song in {req.idioma}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Use GMIV framework."
+        extra = []
+        if req.exclude_style: extra.append(f"EXCLUDE STYLES: {req.exclude_style}")
+        if req.vocal_gender: extra.append(f"VOCAL GENDER: {req.vocal_gender}")
+        if req.weirdness is not None: extra.append(f"WEIRDNESS LEVEL: {req.weirdness} (0=normal, 1=max experimental)")
+        if req.style_influence: extra.append(f"STYLE INFLUENCES: {req.style_influence}")
+        extra_block = "\n".join(extra)
+        sp_maestro = f"You are the MAESTRO. Plan a song in {req.idioma}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Use GMIV framework.\n{extra_block}"
         leader_resp = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "system", "content": sp_maestro}, {"role": "user", "content": f"Theme: {req.tema}"}],
@@ -92,7 +107,10 @@ async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_us
         err_str = str(e)
         if "402" in err_str or "Insufficient" in err_str or "Balance" in err_str:
             # Fallback para demo mode
-            prompt = f"Compose a song in {req.idioma} about: {req.tema}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Write complete lyrics with [Intro][Verse][Chorus][Bridge][Outro] tags."
+            prompt = f"Compose a song in {req.idioma} about: {req.tema}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}."
+            if req.exclude_style: prompt += f" Exclude: {req.exclude_style}."
+            if req.vocal_gender: prompt += f" Vocal: {req.vocal_gender}."
+            prompt += " Write complete lyrics with [Intro][Verse][Chorus][Bridge][Outro] tags."
             response = call_hf(DEMO_MODELS["compose"], prompt, 2000, 0.8)
             production = Production(user_id=user.id, nome=req.tema[:40], conceito=req.tema,
                 estilo=req.estilo, bpm=req.bpm, key=req.key, lyrics=response, suno_package=response)
