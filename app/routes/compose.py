@@ -45,35 +45,34 @@ async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_us
         db.refresh(production)
         return {"mode": "demo", "production_id": production.id, "lyrics": response, "note": "Modo Demo — DeepSeek nao configurado. Qualidade limitada."}
 
-    # Modo Pro — DeepSeek
+    # Modo Pro — DeepSeek (API directa, sem dependencias externas)
     try:
-        from modules.idiomas import get_prompts
         from openai import OpenAI
         client = OpenAI(api_key=user.deepseek_key, base_url="https://api.deepseek.com/v1")
-        prompts = get_prompts(req.idioma)
 
         # Maestro
-        sp = "You are the MAESTRO of MASTER STUDIO PT. Plan composition using GMIV framework."
+        sp_maestro = f"You are the MAESTRO. Plan a song in {req.idioma}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Use GMIV framework."
         leader_resp = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[{"role": "system", "content": sp}, {"role": "user", "content": f"Tema: {req.tema}\nEstilo: {req.estilo}\nBPM: {req.bpm}\nKey: {req.key}"}],
+            messages=[{"role": "system", "content": sp_maestro}, {"role": "user", "content": f"Theme: {req.tema}"}],
             max_tokens=1000, temperature=0.5
         )
         leader = leader_resp.choices[0].message.content.strip()
 
         # Letrista
+        sp_lyrics = f"You are a professional lyricist. Write complete lyrics in {req.idioma} with sections: [Intro][Verse 1][Pre-Chorus][Chorus][Verse 2][Chorus][Bridge][Outro][Fade Out]. 200-300 words. Include instrument tags [instrument: ...] [dynamics: ...]."
         lyricist_resp = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[{"role": "system", "content": prompts["letrista_base"]}, {"role": "user", "content": f"PLANO DO MAESTRO:\n{leader}\n\nEscreve a letra completa em {req.idioma}."}],
+            messages=[{"role": "system", "content": sp_lyrics}, {"role": "user", "content": f"MAESTRO PLAN:\n{leader}\n\nWrite the complete lyrics in {req.idioma}."}],
             max_tokens=3000, temperature=0.92
         )
         lyricist = lyricist_resp.choices[0].message.content.strip()
 
-        # Packager (simplificado para API)
+        # Packager
+        sp_pack = f"You are the FINAL SUNO PACKAGER v5.5. Create a complete Suno AI package. Include: === STYLE DESCRIPTION EN === (max 1000 chars), === LYRICS {req.idioma} ===, === EXCLUDE STYLE === (15+ terms)."
         pack_resp = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[{"role": "system", "content": "You are the FINAL SUNO PACKAGER v5.5. Compile Style Description + Lyrics + Exclude Style."},
-                       {"role": "user", "content": f"PLANO:\n{leader}\n\nLETRA:\n{lyricist}\n\nCompila pacote Suno v5.5."}],
+            messages=[{"role": "system", "content": sp_pack}, {"role": "user", "content": f"PLAN:\n{leader}\n\nLYRICS:\n{lyricist}\n\nCompile the Suno v5.5 package."}],
             max_tokens=3500, temperature=0.5
         )
         final_pack = pack_resp.choices[0].message.content.strip()
@@ -87,7 +86,7 @@ async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_us
         db.add(production)
         db.commit()
         db.refresh(production)
-        return {"mode": "pro", "production_id": production.id, "lyrics": lyricist, "suno_package": final_pack, "leader": leader}
+        return {"mode": "pro", "production_id": production.id, "lyrics": lyricist, "suno_package": final_pack}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro pipeline: {str(e)[:200]}")
