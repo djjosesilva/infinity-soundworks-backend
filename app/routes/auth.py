@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-import jwt
+from jose import jwt as jose_jwt, JWTError
 
 from app.database import get_db, User
 
@@ -55,7 +55,7 @@ def create_jwt(user_id: int, email: str, role: str) -> str:
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + JWT_EXPIRY,
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jose_jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def get_current_user(
@@ -63,13 +63,13 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jose_jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = int(payload["sub"])
         user = db.query(User).filter(User.id == user_id).first()
         if not user or not user.is_active:
             raise HTTPException(status_code=401, detail="Utilizador invalido")
         return user
-    except jwt.ExpiredSignatureError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except Exception:
         raise HTTPException(status_code=401, detail="Token invalido")
