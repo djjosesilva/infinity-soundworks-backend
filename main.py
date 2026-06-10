@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from app.database import engine, Base
 from app.routes import auth, compose, forense, beatriz, galeria, assinatura, admin
 from app.database import SessionLocal, User
-import hashlib, os
+import hashlib
 
 # Auto-seed admin user on startup
 def seed_admin():
@@ -38,12 +38,11 @@ def seed_admin():
     finally:
         db.close()
 
-seed_admin()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    seed_admin()
     yield
 
 
