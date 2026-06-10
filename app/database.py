@@ -19,7 +19,10 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     nome = Column(String, default="DJ Jose Silva")
     role = Column(String, default="user")  # user | admin
-    deepseek_key = Column(String, default="")  # encriptada em repouso
+    deepseek_key = Column(String, default="")
+    login_count = Column(Integer, default=0)
+    last_login = Column(DateTime, nullable=True)
+    system_message = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, default=True)
 

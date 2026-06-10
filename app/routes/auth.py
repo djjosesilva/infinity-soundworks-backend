@@ -36,6 +36,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
+    system_message: str = ""
+    login_count: int = 0
 
 
 class APIKeySetRequest(BaseModel):
@@ -100,8 +102,14 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Credenciais invalidas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Conta desactivada")
+    user.login_count = (user.login_count or 0) + 1
+    user.last_login = datetime.now(timezone.utc)
+    msg = user.system_message
+    if msg:
+        user.system_message = ""  # clear after showing
+    db.commit()
     token = create_jwt(user.id, user.email, user.role)
-    return TokenResponse(access_token=token, user={"id": user.id, "email": user.email, "nome": user.nome, "role": user.role})
+    return TokenResponse(access_token=token, user={"id": user.id, "email": user.email, "nome": user.nome, "role": user.role}, login_count=user.login_count, system_message=msg or "")
 
 
 @router.get("/me")

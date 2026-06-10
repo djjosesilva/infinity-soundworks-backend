@@ -1,8 +1,10 @@
-"""Admin routes — Dashboard e diagnosticos"""
+"""Admin routes — Dashboard, users, diagnosticos"""
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from app.database import get_db, User, Production, Certificate
 from app.routes.auth import get_current_user
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 router = APIRouter()
 
@@ -11,16 +13,45 @@ def require_admin(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
     return user
 
+class MessageRequest(BaseModel):
+    user_id: int
+    message: str
+
 @router.get("/dashboard")
 async def dashboard(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    users_count = db.query(User).count()
+    users = db.query(User).all()
+    users_data = [{"id": u.id, "email": u.email, "nome": u.nome, "role": u.role,
+                   "login_count": u.login_count or 0,
+                   "last_login": str(u.last_login)[:19] if u.last_login else "Nunca",
+                   "is_active": u.is_active,
+                   "has_deepseek": bool(u.deepseek_key),
+                   "productions": db.query(Production).filter(Production.user_id == u.id).count()} for u in users]
     prods_count = db.query(Production).count()
     certs_count = db.query(Certificate).count()
-    recent = db.query(Production).order_by(Production.created_at.desc()).limit(5).all()
     return {
-        "users": users_count, "productions": prods_count, "certificates": certs_count,
-        "recent": [{"id": p.id, "nome": p.nome, "estilo": p.estilo, "created_at": str(p.created_at)[:19]} for p in recent]
+        "users": len(users), "productions": prods_count, "certificates": certs_count,
+        "users_list": users_data,
     }
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Nao podes apagar a tua propria conta")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador nao encontrado")
+    db.delete(user)
+    db.commit()
+    return {"status": "ok", "message": f"Utilizador {user.email} removido"}
+
+@router.post("/message")
+async def send_message(req: MessageRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador nao encontrado")
+    user.system_message = req.message
+    db.commit()
+    return {"status": "ok", "message": f"Mensagem enviada para {user.email}"}
 
 @router.get("/diagnostic")
 async def diagnostic(admin: User = Depends(require_admin)):
