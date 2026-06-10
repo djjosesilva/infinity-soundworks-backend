@@ -26,24 +26,30 @@ async def sign_audio(
         audio_path = tmp.name
 
     try:
-        from modules.assinar_pipeline import assinar_musica_completa
-        meta = {"titulo": titulo, "artista": artista, "genero": genero, "ano": ano,
-                "autor_letra": autor_letra, "autor_instrumental": autor_instrumental,
-                "produtor": "Estudio DJ Jose Silva", "licenca": "Todos os direitos reservados"}
-        result = assinar_musica_completa(audio_path, meta)
+        # Assinatura local (ID3 + hash, sem dependencia de modules/)
+        import hashlib, mutagen
+        from mutagen.id3 import ID3, TIT2, TPE1, TXXX
+        sha256 = hashlib.sha256(open(audio_path, 'rb').read()).hexdigest()
+        track_id = f"EDJJS-{sha256[:12].upper()}"
 
-        cert = Certificate(user_id=user.id, production_id=0, track_id=result["track_id"],
-                          hash_sha256=result["hash_sha256"], titulo=titulo,
-                          file_path=result["ficheiro_assinado"])
+        try:
+            tags = ID3(audio_path)
+        except Exception:
+            tags = ID3()
+        tags.add(TIT2(encoding=3, text=titulo))
+        tags.add(TPE1(encoding=3, text=artista))
+        tags.add(TXXX(encoding=3, desc='ESTUDIO', text='Estudio DJ Jose Silva'))
+        tags.add(TXXX(encoding=3, desc='TRACK_ID', text=track_id))
+        tags.add(TXXX(encoding=3, desc='HASH_SHA256', text=sha256))
+        tags.save(audio_path, v2_version=4)
+
+        cert = Certificate(user_id=user.id, production_id=0, track_id=track_id,
+                          hash_sha256=sha256, titulo=titulo)
         db.add(cert)
         db.commit()
 
-        # Read signed file for download
-        with open(result["ficheiro_assinado"], "rb") as f:
-            signed_bytes = f.read()
-
-        return {"track_id": result["track_id"], "hash_sha256": result["hash_sha256"],
-                "camadas": result["camadas"], "file_size": len(signed_bytes)}
+        return {"track_id": track_id, "hash_sha256": sha256,
+                "camadas": {"id3": True, "watermark": False, "certificado": False}}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
     finally:

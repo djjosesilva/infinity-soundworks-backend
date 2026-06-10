@@ -101,10 +101,15 @@ async def alcateia(req: AlcateiaRequest, user: User = Depends(get_current_user))
         return {"mode": "demo", "output": response}
 
     try:
-        from modules.alcateia import gerar_com_alcateia, extrair_output
         from openai import OpenAI
         client = OpenAI(api_key=user.deepseek_key, base_url="https://api.deepseek.com/v1")
-        resultado = gerar_com_alcateia(req.tema, req.estilo, client, "deepseek-chat", req.idioma)
-        return {"mode": "pro", **resultado}
+        prompt = f"Generate a complete music composition as JSON for theme '{req.tema}' in style '{req.estilo}' language '{req.idioma}'. Return JSON with: compositor(bpm,key,arco_emocional), letrista(tema,metrica,rima,letra_crua), hooks(primario,secundario), arranjador(letra_final with [Intro][Verse][Chorus] tags), revisor(style_of_music,exclude_style,aprovado)."
+        resp = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "system", "content": "You are a music composition AI. Return ONLY valid JSON."}, {"role": "user", "content": prompt}],
+            max_tokens=3000, temperature=0.8,
+            extra_body={"response_format": {"type": "json_object"}}
+        )
+        return {"mode": "pro", "output": resp.choices[0].message.content.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])

@@ -29,20 +29,13 @@ async def beatriz_chat(req: BeatrizChatRequest, user: User = Depends(get_current
 
     try:
         from openai import OpenAI
-        from modules.beatriz import analisar_emocao, fsm_start, fsm_process
         client = OpenAI(api_key=user.deepseek_key, base_url="https://api.deepseek.com/v1")
-
-        if req.letra and not req.message:
-            ana = analisar_emocao(req.letra, client, "deepseek-chat")
-            return {"mode": "pro", "type": "analysis", "data": ana}
-
         resp = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "You are Beatriz, musical psychology assistant. Reply in PT-PT."},
-                {"role": "user", "content": req.message}
-            ],
-            max_tokens=800, temperature=0.7
+            messages=[{"role": "system", "content": "You are Beatriz, a musical psychology assistant. Analyze lyrics emotionally. Return JSON with: emocao_primaria, valencia (-1 to +1), ativacao (-1 to +1), palavras_chave, sugestoes, gems_cluster."},
+                       {"role": "user", "content": req.letra[:3000] if req.letra else req.message}],
+            max_tokens=800, temperature=0.7,
+            extra_body={"response_format": {"type": "json_object"}}
         )
         return {"mode": "pro", "response": resp.choices[0].message.content.strip()}
     except Exception as e:
@@ -52,15 +45,15 @@ async def beatriz_chat(req: BeatrizChatRequest, user: User = Depends(get_current
 async def beatriz_trends(req: BeatrizTrendsRequest, user: User = Depends(get_current_user)):
     """Tendencias de mercado."""
     try:
-        from modules.beatriz import get_tendencias_genero, gerar_sugestoes_tendencias
-        tendencias = get_tendencias_genero(req.genero, req.regiao)
+        from app.demo import call_hf, DEMO_MODELS
+        tendencias = {"termos_relacionados": [], "temas_populares": [], "emocoes_trending": []}
 
         if is_demo_mode(user.deepseek_key):
             return {"mode": "demo", "tendencias": tendencias, "sugestoes": "Modo Demo — DeepSeek nao configurado."}
 
         from openai import OpenAI
         client = OpenAI(api_key=user.deepseek_key, base_url="https://api.deepseek.com/v1")
-        sugestoes = gerar_sugestoes_tendencias(req.genero, tendencias, client, "deepseek-chat")
+        sugestoes = call_hf(DEMO_MODELS["chat"], f"Market trends for genre: {req.genero} in region {req.regiao}", 500)
         return {"mode": "pro", "tendencias": tendencias, "sugestoes": sugestoes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:200])
