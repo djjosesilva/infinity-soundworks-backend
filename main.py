@@ -12,7 +12,6 @@ sys.path.insert(0, str(BASE))
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.database import engine, Base
@@ -48,7 +47,8 @@ app.include_router(galeria.router, prefix="/api/galeria", tags=["Galeria"])
 app.include_router(assinatura.router, prefix="/api/assinatura", tags=["Assinatura"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# No static files needed
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/api/health")
