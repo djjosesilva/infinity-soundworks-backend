@@ -4,7 +4,7 @@ Compose routes — ZACOR AI Pipeline + Alcateia
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.database import get_db, Production, User
-from app.auth import get_current_user
+from app.routes.auth import get_current_user
 from app.demo import is_demo_mode, call_hf, DEMO_MODELS
 from sqlalchemy.orm import Session
 import json
