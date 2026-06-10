@@ -11,28 +11,34 @@ HF_TOKEN = os.getenv("HF_TOKEN", "")
 
 def call_hf(model_id: str, prompt: str, max_tokens: int = 500, temperature: float = 0.7) -> str:
     """Chama HuggingFace Inference API (gratuito)."""
-    headers = {}
-    if HF_TOKEN:
-        headers["Authorization"] = f"Bearer {HF_TOKEN}"
-
     try:
-        resp = requests.post(
-            f"{HF_API_URL}{model_id}",
-            headers=headers,
-            json={
-                "inputs": prompt,
-                "parameters": {"max_new_tokens": max_tokens, "temperature": temperature, "return_full_text": False},
-            },
-            timeout=60,
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(model=model_id, token=HF_TOKEN or None)
+        response = client.text_generation(
+            prompt,
+            max_new_tokens=max_tokens,
+            temperature=temperature,
         )
-        data = resp.json()
-        if isinstance(data, list) and data:
-            return data[0].get("generated_text", "")
-        if isinstance(data, dict):
-            return data.get("generated_text", "")
-        return str(data)
+        return response if response else "[Demo: resposta vazia]"
     except Exception as e:
-        return f"[Demo Mode Error: {str(e)[:100]}]"
+        try:
+            headers = {}
+            if HF_TOKEN:
+                headers["Authorization"] = f"Bearer {HF_TOKEN}"
+            resp = requests.post(
+                f"{HF_API_URL}{model_id}",
+                headers=headers,
+                json={"inputs": prompt, "parameters": {"max_new_tokens": max_tokens, "temperature": temperature, "return_full_text": False}},
+                timeout=90,
+            )
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return data[0].get("generated_text", "")
+            if isinstance(data, dict):
+                return data.get("generated_text", "")
+            return str(data)[:1000]
+        except Exception as e2:
+            return f"[Demo: indisponivel. Adiciona DeepSeek API Key em Definicoes para qualidade maxima. Erro: {str(e2)[:80]}]"
 
 
 DEMO_MODELS = {
