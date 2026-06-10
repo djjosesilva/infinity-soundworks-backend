@@ -89,6 +89,16 @@ async def compose_zacor(req: ComposeRequest, user: User = Depends(get_current_us
         return {"mode": "pro", "production_id": production.id, "lyrics": lyricist, "suno_package": final_pack}
 
     except Exception as e:
+        err_str = str(e)
+        if "402" in err_str or "Insufficient" in err_str or "Balance" in err_str:
+            # Fallback para demo mode
+            prompt = f"Compose a song in {req.idioma} about: {req.tema}. Style: {req.estilo}. BPM: {req.bpm}. Key: {req.key}. Write complete lyrics with [Intro][Verse][Chorus][Bridge][Outro] tags."
+            response = call_hf(DEMO_MODELS["compose"], prompt, 2000, 0.8)
+            production = Production(user_id=user.id, nome=req.tema[:40], conceito=req.tema,
+                estilo=req.estilo, bpm=req.bpm, key=req.key, lyrics=response, suno_package=response)
+            db.add(production); db.commit(); db.refresh(production)
+            return {"mode": "demo_fallback", "production_id": production.id, "lyrics": response,
+                    "note": "DeepSeek sem saldo. A usar HuggingFace gratuito. Adiciona creditos em platform.deepseek.com"}
         raise HTTPException(status_code=500, detail=f"Erro pipeline: {str(e)[:200]}")
 
 
