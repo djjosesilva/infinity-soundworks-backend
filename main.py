@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import engine, Base
-from app.routes import auth, compose, forense, beatriz, galeria, assinatura, admin
+from app.routes import auth, compose, forense, beatriz, galeria, assinatura, admin, marketing
 from app.database import SessionLocal, User
 import hashlib
 
@@ -67,6 +67,7 @@ app.include_router(forense.router, prefix="/api/forense", tags=["Forense"])
 app.include_router(beatriz.router, prefix="/api/beatriz", tags=["Beatriz"])
 app.include_router(galeria.router, prefix="/api/galeria", tags=["Galeria"])
 app.include_router(assinatura.router, prefix="/api/assinatura", tags=["Assinatura"])
+app.include_router(marketing.router, prefix="/api/marketing", tags=["Marketing"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 # No static files needed
