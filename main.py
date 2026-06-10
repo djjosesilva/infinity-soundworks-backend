@@ -16,6 +16,29 @@ from contextlib import asynccontextmanager
 
 from app.database import engine, Base
 from app.routes import auth, compose, forense, beatriz, galeria, assinatura, admin
+from app.database import SessionLocal, User
+import hashlib, os
+
+# Auto-seed admin user on startup
+def seed_admin():
+    db = SessionLocal()
+    try:
+        admin_email = "oficialdjjosesilva@gmail.com"
+        existing = db.query(User).filter(User.email == admin_email).first()
+        if not existing:
+            salt = os.getenv("PASSWORD_SALT", "infinity-soundworks-salt")
+            user = User(
+                email=admin_email,
+                password_hash=hashlib.sha256(f"{salt}admin123".encode()).hexdigest(),
+                nome="DJ Jose Silva",
+                role="admin",
+            )
+            db.add(user)
+            db.commit()
+    finally:
+        db.close()
+
+seed_admin()
 
 
 @asynccontextmanager
