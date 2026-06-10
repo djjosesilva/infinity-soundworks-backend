@@ -81,9 +81,14 @@ async def health():
 
 @app.get("/api/system/info")
 async def system_info():
+    import shutil
+    disk = shutil.disk_usage("/")
     return {
         "python": sys.version,
-        "deepseek_available": os.getenv("DEEPSEEK_API_KEY") is not None,
-        "ffmpeg_available": os.system("ffmpeg -version >nul 2>&1") == 0,
+        "deepseek_available": os.getenv("DEEPSEEK_API_KEY") is not None or False,
+        "ffmpeg_available": os.system("ffmpeg -version >/dev/null 2>&1") == 0 if hasattr(os, 'system') else False,
         "demo_mode": os.getenv("DEMO_MODE", "true").lower() == "true",
+        "disk_free_gb": round(disk.free / (1024**3), 1),
+        "disk_total_gb": round(disk.total / (1024**3), 1),
+        "gpu": "CPU only (HuggingFace Free)",
     }
